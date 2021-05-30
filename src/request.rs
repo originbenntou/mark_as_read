@@ -31,17 +31,18 @@ impl Request {
 
     pub async fn get_unread_messages(&self) -> Result<String, Error> {
         let res_body = self.client
-            .get("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is%3Aunread")
+            .get("https://gmail.googleapis.com/gmail/v1/users/me/messages")
+            .query(&[("q", "is:unread")])
             .send().await?
             .text().await?;
 
         Ok(res_body)
     }
 
-    pub async fn post_remove_unread(&self, ids: Vec<String>) -> Result<(), Error> {
+    pub async fn post_remove_unread(&self, ids: Vec<&str>) -> Result<(), Error> {
         let mut req_body = HashMap::new();
         req_body.insert("ids", ids);
-        req_body.insert("removeLabelIds", vec!["UNREAD".to_string()]);
+        req_body.insert("removeLabelIds", vec!["UNREAD"]);
 
         let _ = self.client
             .post("https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify")
