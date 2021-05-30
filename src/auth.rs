@@ -1,3 +1,5 @@
+use crate::json_parse;
+
 use oauth2::{basic::BasicClient, reqwest::http_client, TokenResponse, StandardRevocableToken, RevocableToken};
 use oauth2::{
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
@@ -5,18 +7,37 @@ use oauth2::{
 };
 use url::Url;
 use std::env;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write, Error};
 use std::net::TcpListener;
+use std::fs;
+
+struct Secret {
+    client_id: String,
+    project_id: String,
+    auth_uri: String,
+    token_uri: String,
+    auth_provider_x509_cert_url: String,
+    client_secret: String,
+}
+
+fn get_secret() -> Result<(&str, &str), Error> {
+    let content = fs::read_to_string("client_secret.json")?;
+
+    let p = match json_parse::deserialize(&content) {
+        Ok(p) => p,
+        Err(e) => {
+            panic!("{:?}", e);
+        },
+    };
+
+    Ok((p["web"]["client_id"].as_str().unwrap()?, p["web"]["client_secret"].as_str().unwrap()?))
+}
 
 pub fn get_oauth2_token() -> String {
-    let google_client_id = ClientId::new(
-        env::var("GOOGLE_CLIENT_ID")
-            .expect("Missing the GOOGLE_CLIENT_ID environment variable."),
-    );
-    let google_client_secret = ClientSecret::new(
-        env::var("GOOGLE_CLIENT_SECRET")
-            .expect("Missing the GOOGLE_CLIENT_SECRET environment variable."),
-    );
+    let secret = get_secret();
+
+    let google_client_id = ClientId::new(secret.0);
+    let google_client_secret = ClientSecret::new(secret.1);
     let auth_url = AuthUrl::new("https://accounts.google.com/o/oauth2/auth".to_string())
         .expect("Invalid authorization endpoint URL");
     let token_url = TokenUrl::new("https://oauth2.googleapis.com/token".to_string())
