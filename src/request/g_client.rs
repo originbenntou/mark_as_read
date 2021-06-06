@@ -2,14 +2,14 @@ use reqwest::{Client, Error, header::*};
 use std::collections::HashMap;
 
 // reqwest client wrapper
-pub struct Request {
+pub struct GClient {
     client: Client,
 }
 
-impl Request {
+impl GClient {
     pub fn new(token: &str) -> Self {
         let client = Client::builder().default_headers(Self::gen_headers(token)).build().unwrap();
-        Request {
+        GClient {
             client
         }
     }

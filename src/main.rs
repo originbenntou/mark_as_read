@@ -1,8 +1,10 @@
-mod auth;
 mod request;
-mod json_parse;
+mod util;
 
-use request::Request;
+use request::g_auth;
+use request::g_client::GClient;
+use util::json_parse;
+
 use std::env;
 use std::process::exit;
 
@@ -10,7 +12,7 @@ use std::process::exit;
 async fn main() {
     println!("mark as read ... start");
 
-    // let oauth2_token = match auth::get_oauth2_token() {
+    // let oauth2_token = match g_auth::get_oauth2_token() {
     //     Ok(token) => token,
     //     Err(e) => {
     //         panic!("{:?}", e);
@@ -21,7 +23,7 @@ async fn main() {
     // tokenは有効期限が切れる
     let oauth2_token = env::var("OAUTH2_TOKEN").unwrap();
 
-    let client = Request::new(&oauth2_token);
+    let client = GClient::new(&oauth2_token);
 
     let res_unread = match client.get_unread_messages().await {
         Ok(res) => res,
