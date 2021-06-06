@@ -10,6 +10,7 @@ use std::env;
 use std::io::{BufRead, BufReader, Write, Error};
 use std::net::TcpListener;
 use std::fs;
+use std::process::exit;
 
 struct Secret {
     client_id: String,
@@ -20,7 +21,7 @@ struct Secret {
     client_secret: String,
 }
 
-fn get_secret() -> Result<(&str, &str), Error> {
+pub fn get_secret() -> Result<(String, String), Error> {
     let content = fs::read_to_string("client_secret.json")?;
 
     let p = match json_parse::deserialize(&content) {
@@ -30,11 +31,11 @@ fn get_secret() -> Result<(&str, &str), Error> {
         },
     };
 
-    Ok((p["web"]["client_id"].as_str().unwrap()?, p["web"]["client_secret"].as_str().unwrap()?))
+    Ok((p["web"]["client_id"].as_str().unwrap().to_string(), p["web"]["client_secret"].as_str().unwrap().to_string()))
 }
 
-pub fn get_oauth2_token() -> String {
-    let secret = get_secret();
+pub fn get_oauth2_token() -> Result<String, Error> {
+    let secret = get_secret()?;
 
     let google_client_id = ClientId::new(secret.0);
     let google_client_secret = ClientSecret::new(secret.1);
@@ -162,5 +163,5 @@ pub fn get_oauth2_token() -> String {
         }
     }
 
-    token
+    Ok(token)
 }

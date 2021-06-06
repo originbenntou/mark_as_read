@@ -10,9 +10,13 @@ use std::process::exit;
 async fn main() {
     println!("mark as read ... start");
 
-    let oauth2_token = auth::get_oauth2_token();
-    println!("token is ... {}", oauth2_token);
-    exit(0);
+    // let oauth2_token = match auth::get_oauth2_token() {
+    //     Ok(token) => token,
+    //     Err(e) => {
+    //         panic!("{:?}", e);
+    //     }
+    // };
+    // println!("token is ... {}", oauth2_token);
 
     // tokenは有効期限が切れる
     let oauth2_token = env::var("OAUTH2_TOKEN").unwrap();
@@ -44,40 +48,42 @@ async fn main() {
     println!("unread num is {}", result_size);
 
     // From list
-    // let mut from_list: Vec<&str> = Vec::new();
-    // for v in deserialize["messages"].as_array().unwrap() {
-    //     let res_message_from = match client.get_message_from(v["id"].as_str().unwrap()).await {
-    //         Ok(res) => res,
-    //         Err(e) => {
-    //             panic!("{:?}", e);
-    //         }
-    //     };
-    //
-    //     let deserialize = match json_parse::deserialize(&res_message_from) {
-    //         Ok(deserialize) => deserialize,
-    //         Err(e) => {
-    //             panic!("{:?}", e);
-    //         }
-    //     };
-    //
-    //     for header in deserialize["payload"]["headers"].as_array().unwrap() {
-    //         from_list.push(header["value"].as_str().unwrap());
-    //     };
-    // }
-    // println!("{:?}", from_list);
+    // FIXME: 並行処理しないと遅い！
+    // FIXME: Vec<&str> にしたい...けどscopeをうまく操作できない
+    let mut from_list: Vec<String> = Vec::new();
+    for v in deserialize["messages"].as_array().unwrap() {
+        let res_message_from = match client.get_message_from(v["id"].as_str().unwrap()).await {
+            Ok(res) => res,
+            Err(e) => {
+                panic!("{:?}", e);
+            }
+        };
+
+        let deserialize = match json_parse::deserialize(&res_message_from) {
+            Ok(deserialize) => deserialize,
+            Err(e) => {
+                panic!("{:?}", e);
+            }
+        };
+
+        for header in deserialize["payload"]["headers"].as_array().unwrap() {
+            from_list.push(header["value"].as_str().unwrap().to_string());
+        };
+    }
+    println!("{:?}", from_list);
 
     // post unread
-    // let mut ids: Vec<&str> = Vec::new();
-    // for v in deserialize["messages"].as_array().unwrap() {
-    //     ids.push(v["id"].as_str().unwrap());
-    // }
+    let mut ids: Vec<&str> = Vec::new();
+    for v in deserialize["messages"].as_array().unwrap() {
+        ids.push(v["id"].as_str().unwrap());
+    }
 
-    // match client.post_remove_unread(ids).await {
-    //     Ok(_) => {},
-    //     Err(e) => {
-    //         panic!("{:?}", e);
-    //     }
-    // };
+    match client.post_remove_unread(ids).await {
+        Ok(_) => {},
+        Err(e) => {
+            panic!("{:?}", e);
+        }
+    };
 
     println!("mark as read ... complete");
 }
