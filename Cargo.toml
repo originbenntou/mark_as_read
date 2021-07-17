@@ -14,3 +14,9 @@ serde_json = "1.0"
 oauth2 = "4.0"
 url = "2.2.2"
 anyhow = "1.0.40"
+
+crossterm = { version = "0.19", features = [ "serde" ] }
+chrono = { version = "0.4", features = ["serde"] }
+rand = { version = "0.7.3", default-features = false, features = ["std"] }
+tui = { version = "0.14", default-features = false, features = ['crossterm', 'serde'] }
+thiserror = "1.0"

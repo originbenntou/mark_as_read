@@ -1,15 +1,11 @@
-use chrono::prelude::*;
-use crossterm::{
-    event::{self, Event as CEvent, KeyCode},
-    terminal::{disable_raw_mode, enable_raw_mode},
-};
-use rand::{distributions::Alphanumeric, prelude::*};
-use serde::{Deserialize, Serialize};
-use std::fs;
 use std::io;
+use std::fs;
+use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
+use rand::{distributions::Alphanumeric, prelude::*};
+use chrono::prelude::*;
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tui::{
     backend::CrosstermBackend,
@@ -21,8 +17,25 @@ use tui::{
     },
     Terminal,
 };
+use crossterm::{
+    event::{self, Event as CEvent, KeyCode},
+    terminal::{disable_raw_mode, enable_raw_mode},
+};
 
-const DB_PATH: &str = "./data/db.json";
+#[derive(Copy, Clone, Debug)]
+enum MenuItem {
+    Home,
+    Pets,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Pet {
+    id: usize,
+    name: String,
+    category: String,
+    age: usize,
+    created_at: DateTime<Utc>,
+}
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -37,20 +50,7 @@ enum Event<I> {
     Tick,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-struct Pet {
-    id: usize,
-    name: String,
-    category: String,
-    age: usize,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(Copy, Clone, Debug)]
-enum MenuItem {
-    Home,
-    Pets,
-}
+const DB_PATH: &str = "./data/db.json";
 
 impl From<MenuItem> for usize {
     fn from(input: MenuItem) -> usize {
@@ -62,36 +62,23 @@ impl From<MenuItem> for usize {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // rawモード
     enable_raw_mode().expect("can run in raw mode");
 
-    // チャネル生成
     let (tx, rx) = mpsc::channel();
-
-    // 200ミリ秒間隔でキーコマンド受付
     let tick_rate = Duration::from_millis(200);
-
-    // スレッド生成
-    // move にて所有権移動
     thread::spawn(move || {
-        // 現在を記録したtimeインスタンス
         let mut last_tick = Instant::now();
-
         loop {
-            // Durationが0になることを意図して経過時間を記録し続ける
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
-            // キーイベントの有無をチェック
             if event::poll(timeout).expect("poll works") {
-                // キーイベントがあれば読み出してsend
                 if let CEvent::Key(key) = event::read().expect("can read events") {
                     tx.send(Event::Input(key)).expect("can send events");
                 }
             }
 
-            // 経過秒が200ミリ秒を超えたらtickを送信して経過秒をリセット
             if last_tick.elapsed() >= tick_rate {
                 if let Ok(_) = tx.send(Event::Tick) {
                     last_tick = Instant::now();
@@ -113,31 +100,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     pet_list_state.select(Some(0));
 
     loop {
-        terminal.draw(|rect| {
-            let size = rect.size();
+        // widget生成
+        terminal.draw(|f| {
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
-                .margin(2)
+                .margin(0)
                 .constraints(
                     [
                         Constraint::Length(3),
                         Constraint::Min(2),
-                        Constraint::Length(3),
                     ]
                         .as_ref(),
                 )
-                .split(size);
-
-            let copyright = Paragraph::new("pet-CLI 2020 - all rights reserved")
-                .style(Style::default().fg(Color::LightCyan))
-                .alignment(Alignment::Center)
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .style(Style::default().fg(Color::White))
-                        .title("Copyright")
-                        .border_type(BorderType::Plain),
-                );
+                .split(f.size());
 
             let menu = menu_titles
                 .iter()
@@ -162,9 +137,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .highlight_style(Style::default().fg(Color::Yellow))
                 .divider(Span::raw("|"));
 
-            rect.render_widget(tabs, chunks[0]);
+            f.render_widget(tabs, chunks[0]);
+
             match active_menu_item {
-                MenuItem::Home => rect.render_widget(render_home(), chunks[1]),
+                MenuItem::Home => f.render_widget(render_home(), chunks[1]),
                 MenuItem::Pets => {
                     let pets_chunks = Layout::default()
                         .direction(Direction::Horizontal)
@@ -173,11 +149,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         )
                         .split(chunks[1]);
                     let (left, right) = render_pets(&pet_list_state);
-                    rect.render_stateful_widget(left, pets_chunks[0], &mut pet_list_state);
-                    rect.render_widget(right, pets_chunks[1]);
+                    f.render_stateful_widget(left, pets_chunks[0], &mut pet_list_state);
+                    f.render_widget(right, pets_chunks[1]);
                 }
             }
-            rect.render_widget(copyright, chunks[2]);
         })?;
 
         match rx.recv()? {
