@@ -20,6 +20,7 @@ struct Secret {
     auth_provider_x509_cert_url: String,
     client_secret: String,
 }
+
 fn get_secret() -> Result<(String, String), Error> {
     let content = fs::read_to_string("client_secret.json")?;
 

@@ -1,12 +1,17 @@
 mod request;
 mod util;
+mod terminal;
 
-use request::g_auth;
-use request::g_client::GClient;
+use request::{
+    g_auth,
+    g_client::GClient,
+};
 use util::json_parse;
-
-use std::env;
-use std::process::exit;
+use terminal::render;
+use std::{
+    env,
+    process::exit,
+};
 
 #[tokio::main]
 async fn main() {
@@ -19,6 +24,8 @@ async fn main() {
     //     }
     // };
     // println!("token is ... {}", oauth2_token);
+    // std::process::exit(0);
+
 
     // tokenは有効期限が切れる
     let oauth2_token = env::var("OAUTH2_TOKEN").unwrap();

@@ -48,12 +48,13 @@ enum Event<I> {
 
 const DB_PATH: &str = "./data/db.json";
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub fn render() -> Result<(), Box<dyn std::error::Error>> {
     // rowモード
     enable_raw_mode().expect("raw mode");
 
     // チャネル送受信機生成
     let (tx, rx) = mpsc::channel();
+
     // 200ミリ秒間隔でキー受付
     let tick_rate = Duration::from_millis(200);
     // スレッド生成
@@ -189,10 +190,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn render_pets<'a>(pet_list_state: &ListState) -> (List<'a>, Table<'a>) {
-    let pets = Block::default()
+    let from = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
-        .title("From(unread)")
+        .title("From")
         .border_type(BorderType::Plain);
 
     let pet_list = read_db().expect("can fetch pet list");
@@ -215,7 +216,7 @@ fn render_pets<'a>(pet_list_state: &ListState) -> (List<'a>, Table<'a>) {
         .expect("exists")
         .clone();
 
-    let list = List::new(items).block(pets).highlight_style(
+    let list = List::new(items).block(from).highlight_style(
         Style::default()
             .bg(Color::Yellow)
             .fg(Color::Black)

@@ -24,7 +24,7 @@ impl GClient {
                 req_headers.insert(AUTHORIZATION, auth);
             },
             Err(e) => {
-                // 何もしない
+                // たぶんないけどtokenセットできなかったら何もしない
             }
         };
 
