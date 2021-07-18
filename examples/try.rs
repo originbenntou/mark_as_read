@@ -1,19 +1,10 @@
-use std::io;
-use std::fs;
-use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
-use rand::{distributions::Alphanumeric, prelude::*};
-use chrono::prelude::*;
-use std::sync::mpsc;
-use std::thread;
-use thiserror::Error;
 use tui::{
     backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Tabs,
+        Block, BorderType, Borders, Cell, List, ListItem, ListState, Row, Table, Tabs,
     },
     Terminal,
 };
@@ -21,12 +12,17 @@ use crossterm::{
     event::{self, Event as CEvent, KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-
-#[derive(Copy, Clone, Debug)]
-enum MenuItem {
-    Home,
-    Pets,
-}
+use serde::{Deserialize, Serialize};
+use rand::{distributions::Alphanumeric, prelude::*};
+use chrono::prelude::*;
+use thiserror::Error;
+use std::{
+    time::{Duration, Instant},
+    sync::mpsc,
+    io,
+    fs,
+    thread,
+};
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Pet {
@@ -52,33 +48,35 @@ enum Event<I> {
 
 const DB_PATH: &str = "./data/db.json";
 
-impl From<MenuItem> for usize {
-    fn from(input: MenuItem) -> usize {
-        match input {
-            MenuItem::Home => 0,
-            MenuItem::Pets => 1,
-        }
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    enable_raw_mode().expect("can run in raw mode");
+    // rowモード
+    enable_raw_mode().expect("raw mode");
 
+    // チャネル送受信機生成
     let (tx, rx) = mpsc::channel();
+    // 200ミリ秒間隔でキー受付
     let tick_rate = Duration::from_millis(200);
+    // スレッド生成
+    // 所有権をスレッド内にmove
     thread::spawn(move || {
+        // 現在時間を経過時間を管理するために生成
         let mut last_tick = Instant::now();
         loop {
+            // 経過時間の差を取得
+            // Durationが0になることを意図して経過時間を記録し続ける
             let timeout = tick_rate
                 .checked_sub(last_tick.elapsed())
                 .unwrap_or_else(|| Duration::from_secs(0));
 
+            // Durationが0以外ならpoll
             if event::poll(timeout).expect("poll works") {
-                if let CEvent::Key(key) = event::read().expect("can read events") {
-                    tx.send(Event::Input(key)).expect("can send events");
+                // キー入力をrxにsend
+                if let CEvent::Key(key) = event::read().expect("read events") {
+                    tx.send(Event::Input(key)).expect("send events");
                 }
             }
 
+            // 経過秒が200ミリ秒を超えたらtickを送信して経過秒をリセット
             if last_tick.elapsed() >= tick_rate {
                 if let Ok(_) = tx.send(Event::Tick) {
                     last_tick = Instant::now();
@@ -94,8 +92,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     terminal.clear()?;
 
     //
-    let menu_titles = vec!["Home", "Pets", "Add", "Delete", "Quit"];
-    let mut active_menu_item = MenuItem::Home;
+    let menu_titles = vec!["Add", "Delete", "Quit"];
     let mut pet_list_state = ListState::default();
     pet_list_state.select(Some(0));
 
@@ -131,28 +128,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .collect();
 
             let tabs = Tabs::new(menu)
-                .select(active_menu_item.into())
                 .block(Block::default().title("Menu").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
-                .highlight_style(Style::default().fg(Color::Yellow))
                 .divider(Span::raw("|"));
 
             f.render_widget(tabs, chunks[0]);
 
-            match active_menu_item {
-                MenuItem::Home => f.render_widget(render_home(), chunks[1]),
-                MenuItem::Pets => {
-                    let pets_chunks = Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(
-                            [Constraint::Percentage(20), Constraint::Percentage(80)].as_ref(),
-                        )
-                        .split(chunks[1]);
-                    let (left, right) = render_pets(&pet_list_state);
-                    f.render_stateful_widget(left, pets_chunks[0], &mut pet_list_state);
-                    f.render_widget(right, pets_chunks[1]);
-                }
-            }
+            // FIXME
+            let pets_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    [Constraint::Percentage(20), Constraint::Percentage(80)].as_ref(),
+                )
+                .split(chunks[1]);
+            let (left, right) = render_pets(&pet_list_state);
+            f.render_stateful_widget(left, pets_chunks[0], &mut pet_list_state);
+            f.render_widget(right, pets_chunks[1]);
         })?;
 
         match rx.recv()? {
@@ -162,8 +153,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     terminal.show_cursor()?;
                     break;
                 }
-                KeyCode::Char('h') => active_menu_item = MenuItem::Home,
-                KeyCode::Char('p') => active_menu_item = MenuItem::Pets,
                 KeyCode::Char('a') => {
                     add_random_pet_to_db().expect("can add new random pet");
                 }
@@ -199,36 +188,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn render_home<'a>() -> Paragraph<'a> {
-    let home = Paragraph::new(vec![
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Welcome")]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("to")]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::styled(
-            "pet-CLI",
-            Style::default().fg(Color::LightBlue),
-        )]),
-        Spans::from(vec![Span::raw("")]),
-        Spans::from(vec![Span::raw("Press 'p' to access pets, 'a' to add random new pets and 'd' to delete the currently selected pet.")]),
-    ])
-        .alignment(Alignment::Center)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .style(Style::default().fg(Color::White))
-                .title("Home")
-                .border_type(BorderType::Plain),
-        );
-    home
-}
-
 fn render_pets<'a>(pet_list_state: &ListState) -> (List<'a>, Table<'a>) {
     let pets = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
-        .title("Pets")
+        .title("Unread")
         .border_type(BorderType::Plain);
 
     let pet_list = read_db().expect("can fetch pet list");
