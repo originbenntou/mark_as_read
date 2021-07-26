@@ -60,6 +60,7 @@ enum Event<I> {
 }
 
 const DB_PATH: &str = "./data/db.json";
+const MARK_LIST_PATH: &str = "./data/mark_list.json";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -273,6 +274,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             from_list_state.select(Some(amount_pets - 1));
                         }
+                    }
+                }
+                KeyCode::Enter => {
+                    if let Some(selected) = from_list_state.selected() {
+                        println!("{:?}", from_list[selected]);
+
+                        let mark_list = fs::read_to_string(MARK_LIST_PATH)?;
+                        let mut add_list: Vec<String> = Vec::new();
+
+                        if mark_list != "" {
+                            let parsed: Vec::<String> = serde_json::from_str(&mark_list)?;
+                            add_list.append(&mut parsed.clone());
+                        }
+
+                        add_list.push(from_list[selected].clone());
+                        fs::write(MARK_LIST_PATH, &serde_json::to_vec(&add_list)?)?;
+
+                        // let db_content = fs::read_to_string(MARK_LIST_PATH)?;
+                        // let mut parsed: Vec<Pet> = serde_json::from_str(&db_content)?;
+                        // parsed.remove(selected);
+                        // fs::write(DB_PATH, &serde_json::to_vec(&parsed)?)?;
+                        // pet_list_state.select(Some(selected - 1));
                     }
                 }
                 _ => {}
