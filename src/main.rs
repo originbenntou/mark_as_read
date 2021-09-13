@@ -75,7 +75,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // println!("token is ... {}", oauth2_token);
     // std::process::exit(0);
 
-
     // tokenは有効期限が切れる
     let oauth2_token = env::var("OAUTH2_TOKEN").unwrap();
 
@@ -128,8 +127,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             from_list.push(header["value"].as_str().unwrap().to_string());
         };
     }
-    println!("{:?}", from_list);
-
 
 
     // rowモード
@@ -182,6 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         // widget生成
         terminal.draw(|f| {
+            // 縦方向分割
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .margin(0)
@@ -210,21 +208,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })
                 .collect();
 
+            // 上部メニュー
             let tabs = Tabs::new(menu)
                 .block(Block::default().title("Menu").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
                 .divider(Span::raw("|"));
-
             f.render_widget(tabs, chunks[0]);
 
+            // 横方向分割
             let from_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints(
-                    [Constraint::Percentage(40), Constraint::Percentage(60)].as_ref(),
+                    [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
                 )
                 .split(chunks[1]);
-            let left = render_froms(&from_list_state, from_list.clone());
+
+            // 左部Fromリスト
+            let left = render_froms("From", from_list.clone());
             f.render_stateful_widget(left, from_chunks[0], &mut from_list_state);
+
+            // 右部Targetリスト
+            let right = render_froms("Target",read_db().unwrap());
+            f.render_widget(right, from_chunks[1]);
         })?;
 
         match rx.recv()? {
@@ -235,10 +240,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
                 KeyCode::Char('a') => {
-                    add_random_pet_to_db().expect("can add new random pet");
                 }
                 KeyCode::Char('d') => {
-                    remove_pet_at_index(&mut from_list_state).expect("can remove pet");
                 }
                 KeyCode::Char('e') => {
                     // post unread
@@ -258,8 +261,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 KeyCode::Down => {
                     if let Some(selected) = from_list_state.selected() {
-                        let amount_pets = read_db().expect("can fetch pet list").len();
-                        if selected >= amount_pets - 1 {
+                        if selected >= from_list.len() - 1 {
                             from_list_state.select(Some(0));
                         } else {
                             from_list_state.select(Some(selected + 1));
@@ -268,18 +270,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 KeyCode::Up => {
                     if let Some(selected) = from_list_state.selected() {
-                        let amount_pets = read_db().expect("can fetch pet list").len();
                         if selected > 0 {
                             from_list_state.select(Some(selected - 1));
                         } else {
-                            from_list_state.select(Some(amount_pets - 1));
+                            from_list_state.select(Some(from_list.len() - 1));
                         }
                     }
                 }
                 KeyCode::Enter => {
                     if let Some(selected) = from_list_state.selected() {
-                        println!("{:?}", from_list[selected]);
-
                         let mark_list = fs::read_to_string(MARK_LIST_PATH)?;
                         let mut add_list: Vec<String> = Vec::new();
 
@@ -290,12 +289,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         add_list.push(from_list[selected].clone());
                         fs::write(MARK_LIST_PATH, &serde_json::to_vec(&add_list)?)?;
-
-                        // let db_content = fs::read_to_string(MARK_LIST_PATH)?;
-                        // let mut parsed: Vec<Pet> = serde_json::from_str(&db_content)?;
-                        // parsed.remove(selected);
-                        // fs::write(DB_PATH, &serde_json::to_vec(&parsed)?)?;
-                        // pet_list_state.select(Some(selected - 1));
                     }
                 }
                 _ => {}
@@ -307,11 +300,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn render_froms<'a>(from_list_state: &ListState, from_list: Vec<String>) -> List<'a> {
+fn render_froms(block_name: &str, from_list: Vec<String>) -> List {
     let from_block = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
-        .title("From")
+        .title(block_name)
         .border_type(BorderType::Plain);
 
     let items: Vec<_> = from_list
@@ -334,9 +327,15 @@ fn render_froms<'a>(from_list_state: &ListState, from_list: Vec<String>) -> List
     list
 }
 
-fn read_db() -> Result<Vec<Pet>, Error> {
-    let db_content = fs::read_to_string(DB_PATH)?;
-    let parsed: Vec<Pet> = serde_json::from_str(&db_content)?;
+fn read_db() -> Result<Vec<String>, Error> {
+    let db_content = fs::read_to_string(MARK_LIST_PATH)?;
+
+    // if db_content == "" {
+    //     let empty_vec: Vec<String> = Vec::new();
+    //     Ok((empty_vec))
+    // }
+
+    let mut parsed: Vec<String> = serde_json::from_str(&db_content)?;
     Ok(parsed)
 }
 
