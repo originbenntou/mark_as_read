@@ -37,15 +37,6 @@ use std::{
     thread,
 };
 
-#[derive(Serialize, Deserialize, Clone)]
-struct Pet {
-    id: usize,
-    name: String,
-    category: String,
-    age: usize,
-    created_at: DateTime<Utc>,
-}
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("error reading the DB file: {0}")]
@@ -337,37 +328,4 @@ fn read_db() -> Result<Vec<String>, Error> {
 
     let mut parsed: Vec<String> = serde_json::from_str(&db_content)?;
     Ok(parsed)
-}
-
-fn add_random_pet_to_db() -> Result<Vec<Pet>, Error> {
-    let mut rng = rand::thread_rng();
-    let db_content = fs::read_to_string(DB_PATH)?;
-    let mut parsed: Vec<Pet> = serde_json::from_str(&db_content)?;
-    let catsdogs = match rng.gen_range(0, 1) {
-        0 => "cats",
-        _ => "dogs",
-    };
-
-    let random_pet = Pet {
-        id: rng.gen_range(0, 9999999),
-        name: rng.sample_iter(Alphanumeric).take(10).collect(),
-        category: catsdogs.to_owned(),
-        age: rng.gen_range(1, 15),
-        created_at: Utc::now(),
-    };
-
-    parsed.push(random_pet);
-    fs::write(DB_PATH, &serde_json::to_vec(&parsed)?)?;
-    Ok(parsed)
-}
-
-fn remove_pet_at_index(pet_list_state: &mut ListState) -> Result<(), Error> {
-    if let Some(selected) = pet_list_state.selected() {
-        let db_content = fs::read_to_string(DB_PATH)?;
-        let mut parsed: Vec<Pet> = serde_json::from_str(&db_content)?;
-        parsed.remove(selected);
-        fs::write(DB_PATH, &serde_json::to_vec(&parsed)?)?;
-        pet_list_state.select(Some(selected - 1));
-    }
-    Ok(())
 }
