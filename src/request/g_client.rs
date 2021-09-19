@@ -42,8 +42,8 @@ impl GClient {
         Ok(res_body)
     }
 
-    // メッセージFrom取得
-    pub async fn get_message_from(&self, id: &str) -> Result<String, Error> {
+    // Fromに絞ったメタデータ取得
+    pub async fn get_metadata_from_only(&self, id: &str) -> Result<String, Error> {
         let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/".to_string() + id;
         let res_body = self.client
             .get(&url)
