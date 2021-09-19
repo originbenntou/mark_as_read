@@ -6,10 +6,6 @@ use request::{
     g_client::GClient,
 };
 use util::json_parse;
-use std::{
-    env,
-    process::exit,
-};
 
 use tui::{
     backend::CrosstermBackend,
@@ -29,12 +25,16 @@ use serde::{Deserialize, Serialize};
 use rand::{distributions::Alphanumeric, prelude::*};
 use chrono::prelude::*;
 use thiserror::Error;
+
 use std::{
     time::{Duration, Instant},
     sync::mpsc,
     io,
     fs,
+    path::Path,
     thread,
+    env,
+    process::exit,
 };
 
 #[derive(Error, Debug)]
@@ -50,39 +50,69 @@ enum Event<I> {
     Tick,
 }
 
-const DB_PATH: &str = "./data/db.json";
+const SECRET_PATH: &str = "./data/secret";
 const MARK_LIST_PATH: &str = "./data/mark_list.json";
+const OAUTH_TOKEN: &str = "OAUTH2_TOKEN";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("mark as read ... start");
 
-    // let oauth2_token = match g_auth::get_oauth2_token() {
-    //     Ok(token) => token,
-    //     Err(e) => {
-    //         panic!("{:?}", e);
-    //     }
-    // };
-    // println!("token is ... {}", oauth2_token);
-    // std::process::exit(0);
+    if !Path::new(SECRET_PATH).exists() {
+        match fs::File::create(SECRET_PATH) {
+            Ok(_) => {},
+            Err(err) => {
+                panic!("{:?}", err);
+            }
+        }
+    }
 
-    // tokenは有効期限が切れる
-    let oauth2_token = env::var("OAUTH2_TOKEN").unwrap();
+    if !Path::new(MARK_LIST_PATH).exists() {
+        match fs::File::create(MARK_LIST_PATH) {
+            Ok(_) => {},
+            Err(err) => {
+                panic!("{:?}", err);
+            }
+        }
+    }
+
+    let oauth2_token = match fs::read_to_string(SECRET_PATH) {
+        Ok(token) => {
+            if !&token.is_empty() {
+                println!("oauth2 token is already set");
+                token
+            } else {
+                match g_auth::get_oauth2_token() {
+                    Ok(token) => {
+                        println!("get oauth2 token ... ok");
+                        fs::write(SECRET_PATH, &token);
+                        token
+                    },
+                    Err(err) => {
+                        panic!("{:?}", err);
+                    }
+                }
+            }
+        },
+        Err(err) => {
+            panic!("{:?}", err);
+        }
+    };
 
     let client = GClient::new(&oauth2_token);
 
     let res_unread = match client.get_unread_messages().await {
         Ok(res) => res,
-        Err(e) => {
-            panic!("{:?}", e);
+        Err(err) => {
+            panic!("{:?}", err);
         }
     };
 
     // 練習がてら敢えて構造体にマップせず、ゆるふわでやってみる
     let deserialize = match json_parse::deserialize(&res_unread) {
         Ok(deserialize) => deserialize,
-        Err(e) => {
-            panic!("{:?}", e);
+        Err(err) => {
+            panic!("{:?}", err);
         }
     };
 
