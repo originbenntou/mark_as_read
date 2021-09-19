@@ -76,28 +76,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let oauth2_token = match fs::read_to_string(SECRET_PATH) {
-        Ok(token) => {
-            if !&token.is_empty() {
-                println!("oauth2 token is already set");
+    let mut oauth2_token = fs::read_to_string(SECRET_PATH)?;
+
+    if !&oauth2_token.is_empty() {
+        println!("oauth2 token is already set");
+    } else {
+        oauth2_token = match g_auth::get_oauth2_token() {
+            Ok(token) => {
+                println!("get oauth2 token ... ok");
+                fs::write(SECRET_PATH, &token);
                 token
-            } else {
-                match g_auth::get_oauth2_token() {
-                    Ok(token) => {
-                        println!("get oauth2 token ... ok");
-                        fs::write(SECRET_PATH, &token);
-                        token
-                    },
-                    Err(err) => {
-                        panic!("{:?}", err);
-                    }
-                }
+            },
+            Err(err) => {
+                panic!("{:?}", err);
             }
-        },
-        Err(err) => {
-            panic!("{:?}", err);
         }
-    };
+    }
 
     let client = GClient::new(&oauth2_token);
 
@@ -132,8 +126,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for v in deserialize["messages"].as_array().unwrap() {
         let res_message_from = match client.get_message_from(v["id"].as_str().unwrap()).await {
             Ok(res) => res,
-            Err(e) => {
-                panic!("{:?}", e);
+            Err(err) => {
+                panic!("{:?}", err);
             }
         };
 
@@ -149,6 +143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
     }
 
+    // 重複するFromは除外
+    from_list.sort();
+    from_list.dedup();
 
     // rowモード
     enable_raw_mode().expect("raw mode");
@@ -303,12 +300,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let mark_list = fs::read_to_string(MARK_LIST_PATH)?;
                         let mut add_list: Vec<String> = Vec::new();
 
-                        if mark_list != "" {
+                        // リストが空じゃなかったらパースして突っ込む
+                        if !&mark_list.is_empty() {
                             let parsed: Vec::<String> = serde_json::from_str(&mark_list)?;
                             add_list.append(&mut parsed.clone());
                         }
 
                         add_list.push(from_list[selected].clone());
+
+                        // 重複排除
+                        add_list.sort();
+                        add_list.dedup();
+
                         fs::write(MARK_LIST_PATH, &serde_json::to_vec(&add_list)?)?;
                     }
                 }
