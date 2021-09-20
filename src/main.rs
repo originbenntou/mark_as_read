@@ -50,6 +50,12 @@ enum Event<I> {
     Tick,
 }
 
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct From {
+    id: String,
+    address: String,
+}
+
 const SECRET_PATH: &str = "./data/secret";
 const MARK_LIST_PATH: &str = "./data/mark_list.json";
 const OAUTH_TOKEN: &str = "OAUTH2_TOKEN";
@@ -118,16 +124,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     }
 
-    // From list
+    let mut from_list: Vec<From> = Vec::new();
+
     // FIXME: 並行処理しないと遅い！
-    // FIXME: Vec<&str> にしたい...けどscopeをうまく操作できない
-    let mut from_list: Vec<String> = Vec::new();
     for message in unread_messages["messages"].as_array().unwrap() {
-        let metadata = match client.get_metadata_from_only(message["id"].as_str().unwrap()).await {
+        let id = message["id"].as_str().unwrap();
+        /* TODO:
+            こういうloop内にあるGETした変数のlifetimeを永続化することはできないか（レスポンスをヒープに収めたらそれ以外はすべて参照にしたい）
+            所有権を移すしかないのか...
+         */
+        let metadata = match client.get_metadata_from_only(id).await {
             Ok(res) => match json_parse::deserialize(&res) {
                 Ok(deserialize) => deserialize,
-                Err(e) => {
-                    panic!("{:?}", e);
+                Err(err) => {
+                    panic!("{:?}", err);
                 }
             },
             Err(err) => {
@@ -136,13 +146,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         for header_from_only in metadata["payload"]["headers"].as_array().unwrap() {
-            from_list.push(header_from_only["value"].as_str().unwrap().to_string());
+            let address = header_from_only["value"].as_str().unwrap();
+            from_list.push(From{
+                id: id.to_string(),
+                address: address.to_string(),
+            });
         };
     }
 
     // 重複するFromは除外
-    from_list.sort();
-    from_list.dedup();
+    // from_list.sort();
+    // from_list.dedup();
 
     // rowモード
     enable_raw_mode().expect("raw mode");
@@ -239,11 +253,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .split(chunks[1]);
 
             // 左部Fromリスト
-            let left = render_froms("From", from_list.clone());
+            let left = render_froms("From", from_list.iter().map(|f| f.address.as_ref()).collect::<Vec<&str>>());
             f.render_stateful_widget(left, from_chunks[0], &mut from_list_state);
 
             // 右部Targetリスト
-            let right = render_froms("Target",read_db().unwrap());
+            let mark_list = read_db().unwrap();
+            let right = render_froms("Target",mark_list.iter().map(AsRef::as_ref).collect());
             f.render_widget(right, from_chunks[1]);
         })?;
 
@@ -303,11 +318,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             add_list.append(&mut parsed.clone());
                         }
 
-                        add_list.push(from_list[selected].clone());
+                        add_list.push(from_list[selected].address.to_string());
 
                         // 重複排除
-                        add_list.sort();
-                        add_list.dedup();
+                        // add_list.sort();
+                        // add_list.dedup();
 
                         fs::write(MARK_LIST_PATH, &serde_json::to_vec(&add_list)?)?;
                     }
@@ -321,7 +336,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn render_froms(block_name: &str, from_list: Vec<String>) -> List {
+fn render_froms<'a>(block_name: &'a str, from_list: Vec<&'a str>) -> List<'a> {
     let from_block = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
@@ -349,13 +364,13 @@ fn render_froms(block_name: &str, from_list: Vec<String>) -> List {
 }
 
 fn read_db() -> Result<Vec<String>, Error> {
-    let db_content = fs::read_to_string(MARK_LIST_PATH)?;
+    let content = fs::read_to_string(MARK_LIST_PATH)?;
 
     // if db_content == "" {
     //     let empty_vec: Vec<String> = Vec::new();
     //     Ok((empty_vec))
     // }
 
-    let mut parsed: Vec<String> = serde_json::from_str(&db_content)?;
+    let parsed: Vec<String> = serde_json::from_str(&content)?;
     Ok(parsed)
 }
