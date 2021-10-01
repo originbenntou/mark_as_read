@@ -33,7 +33,7 @@ use std::{
     fs,
     path::Path,
     thread,
-    env,
+    collections::HashMap,
     process::exit,
 };
 
@@ -154,9 +154,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
     }
 
-    // 重複するFromは除外
-    // from_list.sort();
-    // from_list.dedup();
+    from_list.sort_by(|a, b| a.address.cmp(&b.address));
+
+    // アドレスをkeyにメールIDをリスト化
+    let mut address_ids_hash_map: HashMap<&String, Vec<&String>> = HashMap::new();
+
+    // アドレスだけのリスト
+    let mut address_list: Vec<&String> = Vec::new();
+    // タイトルごとに集計した数のリスト
+    let mut count_list: Vec<String> = Vec::new();
+
+    // TODO: クロージャでも掛けるようになっておきたい
+    // from_list.iter().map(|f| hash_map.insert(&f.address, &f.id));
+    for f in from_list.iter() {
+        if !address_ids_hash_map.contains_key(&f.address) {
+            address_ids_hash_map.insert(&f.address, vec![&f.id]);
+            address_list.push(&f.address);
+        } else {
+            address_ids_hash_map.get_mut(&f.address).unwrap().push(&f.id);
+        }
+    }
+
+    count_list = address_ids_hash_map.iter().map(|x| x.1.len().to_string()).collect::<Vec<String>>();
 
     // rowモード
     enable_raw_mode().expect("raw mode");
@@ -202,14 +221,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     terminal.clear()?;
 
     let menu_titles = vec!["Add", "Delete", "Execute", "Quit"];
+
+    // From選択構造体
     let mut from_list_state = ListState::default();
     from_list_state.select(Some(0));
+
+    // Count選択構造体
+    let mut count_list_state = ListState::default();
+    count_list_state.select(Some(0));
 
     loop {
         // widget生成
         terminal.draw(|f| {
             // 縦方向分割
-            let chunks = Layout::default()
+            let vertical_chunk = Layout::default()
                 .direction(Direction::Vertical)
                 .margin(0)
                 .constraints(
@@ -242,24 +267,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .block(Block::default().title("Menu").borders(Borders::ALL))
                 .style(Style::default().fg(Color::White))
                 .divider(Span::raw("|"));
-            f.render_widget(tabs, chunks[0]);
+            f.render_widget(tabs, vertical_chunk[0]);
 
             // 横方向分割
-            let from_chunks = Layout::default()
+            let horizon_chunk = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints(
-                    [Constraint::Percentage(50), Constraint::Percentage(50)].as_ref(),
+                    [
+                        Constraint::Percentage(47),
+                        Constraint::Percentage(6),
+                        Constraint::Percentage(47),
+                    ].as_ref(),
                 )
-                .split(chunks[1]);
+                .split(vertical_chunk[1]);
 
             // 左部Fromリスト
-            let left = render_froms("From", from_list.iter().map(|f| f.address.as_ref()).collect::<Vec<&str>>());
-            f.render_stateful_widget(left, from_chunks[0], &mut from_list_state);
+            let left = render_froms(
+                "From",
+                address_list.iter().map(|x| x.as_str()).collect::<Vec<&str>>()
+            );
+            f.render_stateful_widget(left, horizon_chunk[0], &mut from_list_state);
+
+            let mid = render_froms(
+                "Count",
+                count_list.iter().map(|x| x.as_str()).collect::<Vec<&str>>()
+            );
+            f.render_stateful_widget(mid, horizon_chunk[1], &mut count_list_state);
 
             // 右部Targetリスト
             let mark_list = read_db().unwrap();
-            let right = render_froms("Target",mark_list.iter().map(AsRef::as_ref).collect());
-            f.render_widget(right, from_chunks[1]);
+            let right = render_froms(
+                "Target",
+                mark_list.iter().map(AsRef::as_ref).collect()
+            );
+            f.render_widget(right, horizon_chunk[2]);
         })?;
 
         match rx.recv()? {
@@ -291,10 +332,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 KeyCode::Down => {
                     if let Some(selected) = from_list_state.selected() {
-                        if selected >= from_list.len() - 1 {
+                        if selected >= address_list.len() - 1 {
                             from_list_state.select(Some(0));
                         } else {
                             from_list_state.select(Some(selected + 1));
+                        }
+                    }
+                    if let Some(selected) = count_list_state.selected() {
+                        if selected >= count_list.len() - 1 {
+                            count_list_state.select(Some(0));
+                        } else {
+                            count_list_state.select(Some(selected + 1));
                         }
                     }
                 }
@@ -303,7 +351,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if selected > 0 {
                             from_list_state.select(Some(selected - 1));
                         } else {
-                            from_list_state.select(Some(from_list.len() - 1));
+                            from_list_state.select(Some(address_list.len() - 1));
+                        }
+                    }
+                    if let Some(selected) = count_list_state.selected() {
+                        if selected > 0 {
+                            count_list_state.select(Some(selected - 1));
+                        } else {
+                            count_list_state.select(Some(count_list.len() - 1));
                         }
                     }
                 }
@@ -318,11 +373,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             add_list.append(&mut parsed.clone());
                         }
 
-                        add_list.push(from_list[selected].address.to_string());
+                        add_list.push(address_list[selected].to_string());
 
                         // 重複排除
-                        // add_list.sort();
-                        // add_list.dedup();
+                        add_list.sort();
+                        add_list.dedup();
 
                         fs::write(MARK_LIST_PATH, &serde_json::to_vec(&add_list)?)?;
                     }
