@@ -1,16 +1,16 @@
 use crate::json_parse;
 
-use oauth2::{basic::BasicClient, reqwest::http_client, TokenResponse, StandardRevocableToken, RevocableToken};
+use url::Url;
 use oauth2::{
+    basic::BasicClient, reqwest::http_client, TokenResponse, StandardRevocableToken, RevocableToken,
     AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, PkceCodeChallenge, RedirectUrl,
     RevocationUrl, Scope, TokenUrl,
 };
-use url::Url;
-use std::env;
-use std::io::{BufRead, BufReader, Write, Error};
-use std::net::TcpListener;
-use std::fs;
-use std::process::exit;
+use std::{
+    io::{BufRead, BufReader, Write, Error},
+    net::TcpListener,
+    fs,
+};
 
 struct Secret {
     client_id: String,
@@ -19,19 +19,6 @@ struct Secret {
     token_uri: String,
     auth_provider_x509_cert_url: String,
     client_secret: String,
-}
-
-fn get_secret() -> Result<(String, String), Error> {
-    let content = fs::read_to_string("client_secret.json")?;
-
-    let p = match json_parse::deserialize(&content) {
-        Ok(p) => p,
-        Err(e) => {
-            panic!("{:?}", e);
-        },
-    };
-
-    Ok((p["web"]["client_id"].as_str().unwrap().to_string(), p["web"]["client_secret"].as_str().unwrap().to_string()))
 }
 
 pub fn get_oauth2_token() -> Result<String, Error> {
@@ -164,4 +151,17 @@ pub fn get_oauth2_token() -> Result<String, Error> {
     }
 
     Ok(token)
+}
+
+fn get_secret() -> Result<(String, String), Error> {
+    let content = fs::read_to_string("client_secret.json")?;
+
+    let p = match json_parse::deserialize(&content) {
+        Ok(p) => p,
+        Err(e) => {
+            panic!("{:?}", e);
+        },
+    };
+
+    Ok((p["web"]["client_id"].as_str().unwrap().to_string(), p["web"]["client_secret"].as_str().unwrap().to_string()))
 }

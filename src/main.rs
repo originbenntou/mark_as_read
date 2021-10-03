@@ -1,12 +1,10 @@
+mod config;
 mod request;
 mod util;
 
-use request::{
-    g_auth,
-    g_client::GClient,
-};
+use request::client::GClient;
+use config::Config;
 use util::json_parse;
-
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -31,7 +29,6 @@ use std::{
     sync::mpsc,
     io,
     fs,
-    path::Path,
     thread,
     collections::HashMap,
     process::exit,
@@ -56,50 +53,16 @@ struct From {
     address: String,
 }
 
-const SECRET_PATH: &str = "./data/secret";
 const MARK_LIST_PATH: &str = "./data/mark_list.json";
-const OAUTH_TOKEN: &str = "OAUTH2_TOKEN";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("mark as read ... start");
 
-    if !Path::new(SECRET_PATH).exists() {
-        match fs::File::create(SECRET_PATH) {
-            Ok(_) => {},
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        }
-    }
+    let mut config = Config::new();
+    config.init();
 
-    if !Path::new(MARK_LIST_PATH).exists() {
-        match fs::File::create(MARK_LIST_PATH) {
-            Ok(_) => {},
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        }
-    }
-
-    let mut oauth2_token = fs::read_to_string(SECRET_PATH)?;
-
-    if !&oauth2_token.is_empty() {
-        println!("oauth2 token is already set");
-    } else {
-        oauth2_token = match g_auth::get_oauth2_token() {
-            Ok(token) => {
-                println!("get oauth2 token ... ok");
-                fs::write(SECRET_PATH, &token);
-                token
-            },
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        }
-    }
-
-    let client = GClient::new(&oauth2_token);
+    let client = GClient::new(&config.valid_token.unwrap_or_default());
 
     let unread_messages = match client.get_unread_messages().await {
         // 練習がてら敢えて構造体にマップせず、ゆるふわパース

@@ -1,2 +1,3 @@
-pub mod g_auth;
-pub mod g_client;
+pub mod client;
+pub mod secret;
+pub mod from;
