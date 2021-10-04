@@ -4,7 +4,7 @@ mod util;
 
 use request::{
     client::GClient,
-    message::MassageList,
+    list::List,
 };
 use config::Config;
 use util::json_parse;
@@ -62,13 +62,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.init();
     let client = GClient::new(&config.valid_token.unwrap_or_default());
 
-    let message_list = MassageList::get_unread_messages(&client).await?;
-    if let 0 = message_list.result_size_estimate {
+    let unread_message_list = List::new().get_unread_messages(&client).await?;
+    let unread_num = unread_message_list.result_size_estimate.unwrap();
+
+    if unread_num == 0 {
         println!("no unread ... end");
         std::process::exit(0);
     } else {
-        println!("unread count is {}", unread_count);
-
+        println!("unread count is {}", unread_num);
     }
 
     let mut from_list: Vec<From> = Vec::new();

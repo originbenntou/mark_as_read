@@ -1,3 +1,4 @@
 pub mod client;
 pub mod secret;
-pub mod message;
+pub mod list;
+pub mod metadata;

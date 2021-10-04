@@ -8,29 +8,28 @@ extern crate serde;
 extern crate serde_json;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct From {
-    id: String,
-    address: String,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct MassageList {
-    pub messages: Vec<MassageIdSet>,
-    pub result_size_estimate: usize,
+pub struct Metadata {
+    pub messages: Option<Vec<MassageIdSet>>,
+    pub result_size_estimate: Option<usize>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct MassageIdSet {
-    id: String,
-    thread_id: String
+impl Default for MassageList {
+    fn default() -> Self {
+        Self {
+            messages: None,
+            result_size_estimate: None,
+        }
+    }
 }
 
 impl MassageList {
+    pub fn new() -> Self { Self::default() }
+
     // 未読メッセージ取得
-    pub async fn get_unread_messages(g_client: &GClient) -> Result<MassageList, Error> {
+    // TODO: self取ってるけど使ってない...
+    pub async fn get_unread_messages(&self, g_client: &GClient) -> Result<MassageList, Error> {
         let res_body = g_client.call_api(
             &"https://gmail.googleapis.com/gmail/v1/users/me/messages",
             &vec![("q", "is:unread")],
