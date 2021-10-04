@@ -41,11 +41,11 @@ impl Config<'_> {
             println!("oauth2 token is already set");
         } else {
             token = secret::get_oauth2_token().unwrap();
-
             fs::write(self.secret_path, &token).unwrap();
-            self.valid_token = Some(token);
             println!("get oauth2 token ... ok");
         }
+
+        self.valid_token = Some(token);
     }
 }
 

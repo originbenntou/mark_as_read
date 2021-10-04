@@ -2,7 +2,10 @@ mod config;
 mod request;
 mod util;
 
-use request::client::GClient;
+use request::{
+    client::GClient,
+    message::MassageList,
+};
 use config::Config;
 use util::json_parse;
 use tui::{
@@ -11,7 +14,7 @@ use tui::{
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     widgets::{
-        Block, BorderType, Borders, Cell, List, ListItem, ListState, Row, Table, Tabs,
+        Block, BorderType, Borders, List, ListItem, ListState, Tabs,
     },
     Terminal,
 };
@@ -19,9 +22,6 @@ use crossterm::{
     event::{self, Event as CEvent, KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use serde::{Deserialize, Serialize};
-use rand::{distributions::Alphanumeric, prelude::*};
-use chrono::prelude::*;
 use thiserror::Error;
 
 use std::{
@@ -31,7 +31,6 @@ use std::{
     fs,
     thread,
     collections::HashMap,
-    process::exit,
 };
 
 #[derive(Error, Debug)]
@@ -61,25 +60,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut config = Config::new();
     config.init();
-
     let client = GClient::new(&config.valid_token.unwrap_or_default());
 
-    let unread_messages = match client.get_unread_messages().await {
-        // 練習がてら敢えて構造体にマップせず、ゆるふわパース
-        Ok(res) => match json_parse::deserialize(&res) {
-            Ok(deserialize) => deserialize,
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        },
-        Err(err) => {
-            panic!("{:?}", err);
-        }
-    };
-
-    let unread_count = unread_messages["resultSizeEstimate"].as_u64().unwrap();
-
-    if let 0 = unread_count {
+    let message_list = MassageList::get_unread_messages(&client).await?;
+    if let 0 = message_list.result_size_estimate {
         println!("no unread ... end");
         std::process::exit(0);
     } else {
@@ -327,7 +311,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 KeyCode::Enter => {
                     if let Some(selected) = from_list_state.selected() {
-                        let mark_list = fs::read_to_string(MARK_LIST_PATH)?;
+                        let mark_list = fs::read_to_string(config.mark_list_path)?;
                         let mut add_list: Vec<String> = Vec::new();
 
                         // リストが空じゃなかったらパースして突っ込む
@@ -342,7 +326,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         add_list.sort();
                         add_list.dedup();
 
-                        fs::write(MARK_LIST_PATH, &serde_json::to_vec(&add_list)?)?;
+                        fs::write(config.mark_list_path, &serde_json::to_vec(&add_list)?)?;
                     }
                 }
                 _ => {}
