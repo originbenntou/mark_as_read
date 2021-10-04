@@ -1,6 +1,6 @@
-use crate::request::client::{
-    GClient,
-    Method
+use crate::request::{
+    client::{GClient, Method},
+    message::Message,
 };
 use reqwest::Error;
 
@@ -10,19 +10,12 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct List {
-    pub messages: Option<Vec<IdSet>>,
+pub struct MessageList {
+    pub messages: Option<Vec<Message>>,
     pub result_size_estimate: Option<usize>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct IdSet {
-    id: Option<String>,
-    thread_id: Option<String>,
-}
-
-impl Default for List {
+impl Default for MessageList {
     fn default() -> Self {
         Self {
             messages: None,
@@ -31,22 +24,12 @@ impl Default for List {
     }
 }
 
-impl Default for IdSet {
-    fn default() -> Self {
-        Self {
-            id: None,
-            thread_id: None,
-        }
-    }
-}
-
-impl List {
+impl MessageList {
     pub fn new() -> Self { Self::default() }
 
     // 未読メッセージ取得
-    // TODO: self取ってるけど使ってない...
-    pub async fn get_unread_messages(&self, g_client: &GClient) -> Result<List, Error> {
-        let res_body = g_client.call_api(
+    pub async fn get_unread_messages(&self, request: &GClient) -> Result<MessageList, Error> {
+        let res_body = request.call_api(
             &"https://gmail.googleapis.com/gmail/v1/users/me/messages",
             &vec![("q", "is:unread")],
             &vec![],

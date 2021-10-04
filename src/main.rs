@@ -4,7 +4,7 @@ mod util;
 
 use request::{
     client::GClient,
-    list::List,
+    message_list::MessageList,
 };
 use config::Config;
 use util::json_parse;
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.init();
     let client = GClient::new(&config.valid_token.unwrap_or_default());
 
-    let unread_message_list = List::new().get_unread_messages(&client).await?;
+    let unread_message_list = MessageList::new().get_unread_messages(&client).await?;
     let unread_num = unread_message_list.result_size_estimate.unwrap();
 
     if unread_num == 0 {

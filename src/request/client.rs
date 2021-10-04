@@ -61,32 +61,6 @@ impl GClient {
         }
     }
 
-    // 未読メッセージ取得
-    pub async fn get_unread_messages(&self) -> Result<String, Error> {
-        let res_body = self.client
-            .get("https://gmail.googleapis.com/gmail/v1/users/me/messages")
-            .query(&[("q", "is:unread")])
-            .send().await?
-            .text().await?;
-
-        Ok(res_body)
-    }
-
-    // Fromに絞ったメタデータ取得
-    pub async fn get_metadata_from_only(&self, id: &str) -> Result<String, Error> {
-        let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/".to_string() + id;
-        let res_body = self.client
-            .get(&url)
-            .query(&[
-                ("format", "metadata"),
-                ("metadataHeaders", "From"),
-            ])
-            .send().await?
-            .text().await?;
-
-        Ok(res_body)
-    }
-
     // 既読化
     pub async fn post_remove_unread(&self, ids: Vec<&str>) -> Result<(), Error> {
         let mut req_body = HashMap::new();
