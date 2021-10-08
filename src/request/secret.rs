@@ -1,4 +1,5 @@
-use crate::json_parse;
+extern crate serde;
+extern crate serde_json;
 
 use url::Url;
 use oauth2::{
@@ -156,12 +157,7 @@ pub fn get_oauth2_token() -> Result<String, Error> {
 fn get_secret() -> Result<(String, String), Error> {
     let content = fs::read_to_string("client_secret.json")?;
 
-    let p = match json_parse::deserialize(&content) {
-        Ok(p) => p,
-        Err(e) => {
-            panic!("{:?}", e);
-        },
-    };
+    let p: serde_json::Value = serde_json::from_str(&content).unwrap();
 
     Ok((p["web"]["client_id"].as_str().unwrap().to_string(), p["web"]["client_secret"].as_str().unwrap().to_string()))
 }

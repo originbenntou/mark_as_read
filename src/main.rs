@@ -1,13 +1,13 @@
 mod config;
 mod request;
-mod util;
+mod from;
 
 use request::{
     client::GClient,
     message_list::MessageList,
 };
+use from::From;
 use config::Config;
-use util::json_parse;
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -32,6 +32,7 @@ use std::{
     thread,
     collections::HashMap,
 };
+use serde_json::value::Value::Null;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -44,12 +45,6 @@ pub enum Error {
 enum Event<I> {
     Input(I),
     Tick,
-}
-
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct From {
-    id: String,
-    address: String,
 }
 
 const MARK_LIST_PATH: &str = "./data/mark_list.json";
@@ -72,58 +67,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("unread count is {}", unread_num);
     }
 
-    let mut from_list: Vec<From> = Vec::new();
+    let mut from_list = From::new().get_sorted_list(&client, &unread_message_list).await?;
 
-    // FIXME: 並行処理しないと遅い！
-    for message in unread_messages["messages"].as_array().unwrap() {
-        let id = message["id"].as_str().unwrap();
-        /* TODO:
-            こういうloop内にあるGETした変数のlifetimeを永続化することはできないか（レスポンスをヒープに収めたらそれ以外はすべて参照にしたい）
-            所有権を移すしかないのか...
-         */
-        let metadata = match client.get_metadata_from_only(id).await {
-            Ok(res) => match json_parse::deserialize(&res) {
-                Ok(deserialize) => deserialize,
-                Err(err) => {
-                    panic!("{:?}", err);
-                }
-            },
-            Err(err) => {
-                panic!("{:?}", err);
-            }
-        };
-
-        for header_from_only in metadata["payload"]["headers"].as_array().unwrap() {
-            let address = header_from_only["value"].as_str().unwrap();
-            from_list.push(From{
-                id: id.to_string(),
-                address: address.to_string(),
-            });
-        };
-    }
+    std::process::exit(0);
 
     from_list.sort_by(|a, b| a.address.cmp(&b.address));
-
-    // アドレスをkeyにメールIDをリスト化
-    let mut address_ids_hash_map: HashMap<&String, Vec<&String>> = HashMap::new();
 
     // アドレスだけのリスト
     let mut address_list: Vec<&String> = Vec::new();
     // タイトルごとに集計した数のリスト
     let mut count_list: Vec<String> = Vec::new();
-
-    // TODO: クロージャでも掛けるようになっておきたい
-    // from_list.iter().map(|f| hash_map.insert(&f.address, &f.id));
-    for f in from_list.iter() {
-        if !address_ids_hash_map.contains_key(&f.address) {
-            address_ids_hash_map.insert(&f.address, vec![&f.id]);
-            address_list.push(&f.address);
-        } else {
-            address_ids_hash_map.get_mut(&f.address).unwrap().push(&f.id);
-        }
-    }
-
-    count_list = address_ids_hash_map.iter().map(|x| x.1.len().to_string()).collect::<Vec<String>>();
 
     // rowモード
     enable_raw_mode().expect("raw mode");
