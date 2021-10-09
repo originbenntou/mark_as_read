@@ -1,13 +1,13 @@
 mod config;
 mod request;
-mod from;
+mod message;
 
+use config::Config;
 use request::{
     client::GClient,
-    message_list::MessageList,
 };
-use from::From;
-use config::Config;
+use message::MessageClient;
+
 use tui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -32,7 +32,6 @@ use std::{
     thread,
     collections::HashMap,
 };
-use serde_json::value::Value::Null;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -53,12 +52,15 @@ const MARK_LIST_PATH: &str = "./data/mark_list.json";
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("mark as read ... start");
 
+    // APIクライアント初期化
     let mut config = Config::new();
     config.init();
     let client = GClient::new(&config.valid_token.unwrap_or_default());
+    let message_client = MessageClient::new(&client);
 
-    let unread_message_list = MessageList::new().get_unread_messages(&client).await?;
-    let unread_num = unread_message_list.result_size_estimate.unwrap();
+    // 未読リスト取得
+    let unread_message_list = message_client.get_unread_list().await?;
+    let unread_num = unread_message_list.len();
 
     if unread_num == 0 {
         println!("no unread ... end");
@@ -67,16 +69,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("unread count is {}", unread_num);
     }
 
-    let mut from_list = From::new().get_sorted_list(&client, &unread_message_list).await?;
-
-    std::process::exit(0);
-
-    from_list.sort_by(|a, b| a.address.cmp(&b.address));
+    // 未読リストの詳細データを埋める
+    // FIXME: 引数はもう使わないのでmoveすべきかも、いや借用をちゃんと利用すべきかも
+    let filled_message_list = message_client.fill_messages_metadata(&unread_message_list).await?;
 
     // アドレスだけのリスト
-    let mut address_list: Vec<&String> = Vec::new();
+    let mut address_list = filled_message_list.iter().map(|m| {
+        let headers = m.payload.as_ref().unwrap().headers.as_ref().unwrap();
+        // タイトルだけしかないはず
+        if headers.len() > 1 {
+            panic!();
+        }
+        /* FIXME:
+             &&strになっちゃうけどあと&Stringと&strの違いも知りたい
+             あと&Stringと&strの違いはなんですか
+             あとFromIteratorトレイトはVec<&str>に実装されてないって言われた気がするけどcollectできちゃったよ...
+        */
+        headers[0].value.as_ref().unwrap().as_str()
+    }).collect::<Vec<&str>>();
+
+    let mut hashmap = HashMap::new();
+    for address in address_list.iter() {
+        let count = hashmap.entry(address).or_insert(0);
+        *count += 1;
+    }
+
     // タイトルごとに集計した数のリスト
-    let mut count_list: Vec<String> = Vec::new();
+    let tmp_count_list = address_list.iter().map(
+        |a| { hashmap[a].to_string() }
+    ).collect::<Vec<String>>();
+    let count_list = tmp_count_list.iter().map(
+        |c| { c.as_str() }
+    ).collect::<Vec<&str>>();
+
 
     // rowモード
     enable_raw_mode().expect("raw mode");
@@ -185,13 +210,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // 左部Fromリスト
             let left = render_froms(
                 "From",
-                address_list.iter().map(|x| x.as_str()).collect::<Vec<&str>>()
+                address_list.clone(), // ループするクロージャごとでmoveされるため
             );
             f.render_stateful_widget(left, horizon_chunk[0], &mut from_list_state);
 
             let mid = render_froms(
                 "Count",
-                count_list.iter().map(|x| x.as_str()).collect::<Vec<&str>>()
+                count_list.clone(), // ループするクロージャごとでmoveされるため
             );
             f.render_stateful_widget(mid, horizon_chunk[1], &mut count_list_state);
 
@@ -212,8 +237,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
                 KeyCode::Char('a') => {
+                    if let Some(selected) = from_list_state.selected() {
+                        let mark_list = fs::read_to_string(config.mark_list_path)?;
+                        let mut add_list: Vec<String> = Vec::new();
+
+                        // リストが空じゃなかったらパースして突っ込む
+                        if !&mark_list.is_empty() {
+                            let parsed: Vec::<String> = serde_json::from_str(&mark_list)?;
+                            add_list.append(&mut parsed.clone());
+                        }
+
+                        add_list.push(address_list[selected].to_string());
+
+                        // 重複排除
+                        add_list.sort();
+                        add_list.dedup();
+
+                        fs::write(config.mark_list_path, &serde_json::to_vec(&add_list)?)?;
+                    }
                 }
                 KeyCode::Char('d') => {
+                    // 消せるようにしたいなー
                 }
                 KeyCode::Char('e') => {
                     // post unread
@@ -261,26 +305,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             count_list_state.select(Some(count_list.len() - 1));
                         }
-                    }
-                }
-                KeyCode::Enter => {
-                    if let Some(selected) = from_list_state.selected() {
-                        let mark_list = fs::read_to_string(config.mark_list_path)?;
-                        let mut add_list: Vec<String> = Vec::new();
-
-                        // リストが空じゃなかったらパースして突っ込む
-                        if !&mark_list.is_empty() {
-                            let parsed: Vec::<String> = serde_json::from_str(&mark_list)?;
-                            add_list.append(&mut parsed.clone());
-                        }
-
-                        add_list.push(address_list[selected].to_string());
-
-                        // 重複排除
-                        add_list.sort();
-                        add_list.dedup();
-
-                        fs::write(config.mark_list_path, &serde_json::to_vec(&add_list)?)?;
                     }
                 }
                 _ => {}

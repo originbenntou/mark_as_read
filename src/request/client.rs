@@ -12,6 +12,14 @@ pub enum Method {
     POST,
 }
 
+impl Default for GClient {
+    fn default() -> Self {
+        Self {
+            client: Client::new()
+        }
+    }
+}
+
 impl GClient {
     pub fn new(token: &str) -> Self {
         let client = Client::builder().default_headers(Self::gen_headers(token)).build().unwrap();
@@ -30,7 +38,7 @@ impl GClient {
                 req_headers.insert(AUTHORIZATION, auth);
             },
             Err(e) => {
-                // たぶんないけどtokenセットできなかったら何もしない
+                unreachable!();
             }
         };
 
@@ -41,7 +49,7 @@ impl GClient {
         &self,
         url: &str,
         query: &Vec<(&str, &str)>,
-        body: &Vec<(&str, &str)>,
+        _body: &Vec<(&str, &str)>,
         method: Method,
     ) -> Result<String, Error>
     {
@@ -55,8 +63,7 @@ impl GClient {
                 Ok(res_body)
             },
             _ => {
-                // FIXME
-                Ok("aaaa".to_string())
+                unreachable!();
             }
         }
     }
