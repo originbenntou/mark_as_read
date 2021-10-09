@@ -30,7 +30,6 @@ use std::{
     io,
     fs,
     thread,
-    collections::HashMap,
 };
 
 #[derive(Error, Debug)]
@@ -73,35 +72,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // FIXME: 引数はもう使わないのでmoveすべきかも、いや借用をちゃんと利用すべきかも
     let filled_message_list = message_client.fill_messages_metadata(&unread_message_list).await?;
 
-    // アドレスだけのリスト
-    let mut address_list = filled_message_list.iter().map(|m| {
-        let headers = m.payload.as_ref().unwrap().headers.as_ref().unwrap();
-        // タイトルだけしかないはず
-        if headers.len() > 1 {
-            panic!();
-        }
-        /* FIXME:
-             &&strになっちゃうけどあと&Stringと&strの違いも知りたい
-             あと&Stringと&strの違いはなんですか
-             あとFromIteratorトレイトはVec<&str>に実装されてないって言われた気がするけどcollectできちゃったよ...
-        */
-        headers[0].value.as_ref().unwrap().as_str()
-    }).collect::<Vec<&str>>();
-
-    let mut hashmap = HashMap::new();
-    for address in address_list.iter() {
-        let count = hashmap.entry(address).or_insert(0);
-        *count += 1;
-    }
-
-    // タイトルごとに集計した数のリスト
-    let tmp_count_list = address_list.iter().map(
-        |a| { hashmap[a].to_string() }
-    ).collect::<Vec<String>>();
-    let count_list = tmp_count_list.iter().map(
-        |c| { c.as_str() }
-    ).collect::<Vec<&str>>();
-
+    // 表示用にアドレスと数値のリストを生成
+    let address_count_list = message::get_address_count_list(
+        &filled_message_list
+    ).unwrap();
+    let address_list = message::get_address_list(&address_count_list);
+    let count_list = message::get_count_list(&address_count_list);
 
     // rowモード
     enable_raw_mode().expect("raw mode");

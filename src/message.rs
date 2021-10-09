@@ -10,6 +10,10 @@ extern crate serde_json;
 use serde::{Serialize, Deserialize};
 use serde_json::Value;
 
+use std::{
+    collections::HashMap,
+};
+
 pub struct MessageClient<'a> {
     pub client: &'a GClient,
     pub message: Option<Message>,
@@ -115,4 +119,35 @@ impl Default for Message {
 
 impl Message {
     pub fn new() -> Self { Self::default() }
+}
+
+pub fn get_address_count_list(list: &Vec<Message>) -> Result<HashMap<&str, String>, ()> {
+    let mut address_count_list = HashMap::new();
+    let mut tmp_address_count_list = HashMap::new();
+
+    for m in list.iter() {
+        let headers = m.payload.as_ref().unwrap().headers.as_ref().unwrap();
+        // タイトルだけしかないはず
+        if headers.len() > 1 {
+            return Err(()); // FIXME 自作エラーを学ぶ
+        }
+        let address = headers[0].value.as_ref().unwrap().as_str();
+
+        let count = tmp_address_count_list.entry(address).or_insert(0);
+        *count += 1;
+    }
+
+    for element in tmp_address_count_list {
+        address_count_list.insert(element.0, element.1.to_string());
+    }
+
+    Ok(address_count_list)
+}
+
+pub fn get_address_list<'a>(list: &HashMap<&'a str, String>) -> Vec<&'a str> {
+    list.clone().into_keys().map(|k| { k }).collect::<Vec<&str>>()
+}
+
+pub fn get_count_list<'a>(list: &HashMap<&'a str, String>) -> Vec<&'a str> {
+    list.clone().values().map(|k| { k.as_str() }).collect::<Vec<&str>>()
 }
