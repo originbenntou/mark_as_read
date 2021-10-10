@@ -76,8 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address_count_list = message::get_address_count_list(
         &filled_message_list
     ).unwrap();
-    let address_list = message::get_address_list(&address_count_list);
-    let count_list = message::get_count_list(&address_count_list);
+    // FIXME: 関数内で生まれた値は一度外だししないと、参照にできないのが不便
+    let (address_list, count_list) = message::split_address_count(&address_count_list);
 
     // rowモード
     enable_raw_mode().expect("raw mode");

@@ -144,10 +144,9 @@ pub fn get_address_count_list(list: &Vec<Message>) -> Result<HashMap<&str, Strin
     Ok(address_count_list)
 }
 
-pub fn get_address_list<'a>(list: &HashMap<&'a str, String>) -> Vec<&'a str> {
-    list.clone().into_keys().map(|k| { k }).collect::<Vec<&str>>()
-}
+pub fn split_address_count<'a>(list: &'a HashMap<&str, String>) -> (Vec<&'a str>, Vec<&'a str>) {
+    let address_list = list.keys().map(|k| *k).collect::<Vec<&str>>();
+    let count_list = list.values().map(|v| v.as_str()).collect::<Vec<&str>>();
 
-pub fn get_count_list<'a>(list: &HashMap<&'a str, String>) -> Vec<&'a str> {
-    list.clone().values().map(|k| { k.as_str() }).collect::<Vec<&str>>()
+    (address_list, count_list)
 }
