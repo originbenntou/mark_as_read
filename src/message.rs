@@ -107,20 +107,6 @@ impl<'a> MessageClient<'a> {
     }
 }
 
-impl Default for Message {
-    fn default() -> Self {
-        Self {
-            id: None,
-            thread_id: None,
-            payload: None
-        }
-    }
-}
-
-impl Message {
-    pub fn new() -> Self { Self::default() }
-}
-
 pub fn get_address_count_list(list: &Vec<Message>) -> Result<HashMap<&str, String>, ()> {
     let mut address_count_list = HashMap::new();
     let mut tmp_address_count_list = HashMap::new();

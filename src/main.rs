@@ -1,12 +1,16 @@
 mod config;
 mod request;
 mod message;
+mod events;
+mod app;
 
 use config::Config;
 use request::{
     client::GClient,
 };
 use message::MessageClient;
+use events::events::{Event, Events};
+use app::EventState;
 
 use tui::{
     backend::CrosstermBackend,
@@ -19,7 +23,7 @@ use tui::{
     Terminal,
 };
 use crossterm::{
-    event::{self, Event as CEvent, KeyCode},
+    event::{KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use thiserror::Error;
@@ -38,11 +42,6 @@ pub enum Error {
     ReadDBError(#[from] io::Error),
     #[error("error parsing the DB file: {0}")]
     ParseDBError(#[from] serde_json::Error),
-}
-
-enum Event<I> {
-    Input(I),
-    Tick,
 }
 
 const MARK_LIST_PATH: &str = "./data/mark_list.json";
@@ -82,39 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // rowモード
     enable_raw_mode().expect("raw mode");
 
-    // チャネル送受信機生成
-    let (tx, rx) = mpsc::channel();
-
-    // 200ミリ秒間隔でキー受付
-    let tick_rate = Duration::from_millis(200);
-    // スレッド生成
-    // 所有権をスレッド内にmove
-    thread::spawn(move || {
-        // 現在時間を経過時間を管理するために生成
-        let mut last_tick = Instant::now();
-        loop {
-            // 経過時間の差を取得
-            // Durationが0になることを意図して経過時間を記録し続ける
-            let timeout = tick_rate
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or_else(|| Duration::from_secs(0));
-
-            // Durationが0以外ならpoll
-            if event::poll(timeout).expect("poll works") {
-                // キー入力をrxにsend
-                if let CEvent::Key(key) = event::read().expect("read events") {
-                    tx.send(Event::Input(key)).expect("send events");
-                }
-            }
-
-            // 経過秒が200ミリ秒を超えたらtickを送信して経過秒をリセット
-            if last_tick.elapsed() >= tick_rate {
-                if let Ok(_) = tx.send(Event::Tick) {
-                    last_tick = Instant::now();
-                }
-            }
-        }
-    });
+    let events = Events::new(200);
 
     // 画面初期化
     let stdout = io::stdout();
@@ -131,6 +98,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Count選択構造体
     let mut count_list_state = ListState::default();
     count_list_state.select(Some(0));
+
+    terminal.clear()?;
 
     loop {
         // widget生成
@@ -205,89 +174,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             f.render_widget(right, horizon_chunk[2]);
         })?;
 
-        match rx.recv()? {
-            Event::Input(event) => match event.code {
-                KeyCode::Char('q') => {
-                    disable_raw_mode()?;
-                    terminal.show_cursor()?;
-                    break;
-                }
-                KeyCode::Char('a') => {
-                    if let Some(selected) = from_list_state.selected() {
-                        let mark_list = fs::read_to_string(config.mark_list_path)?;
-                        let mut add_list: Vec<String> = Vec::new();
-
-                        // リストが空じゃなかったらパースして突っ込む
-                        if !&mark_list.is_empty() {
-                            let parsed: Vec::<String> = serde_json::from_str(&mark_list)?;
-                            add_list.append(&mut parsed.clone());
+        match events.next()? {
+            Event::Input(event) => {
+                match app::event(event.code) {
+                    Ok(state) => {
+                        if state == EventState::NotConsumed {
+                            break;
                         }
-
-                        add_list.push(address_list[selected].to_string());
-
-                        // 重複排除
-                        add_list.sort();
-                        add_list.dedup();
-
-                        fs::write(config.mark_list_path, &serde_json::to_vec(&add_list)?)?;
+                    },
+                    Err(_err) => {
+                        break;
                     }
                 }
-                KeyCode::Char('d') => {
-                    // 消せるようにしたいなー
-                }
-                KeyCode::Char('e') => {
-                    // post unread
-                    // let mut ids: Vec<&str> = Vec::new();
-                    // for v in deserialize["messages"].as_array().unwrap() {
-                    //     ids.push(v["id"].as_str().unwrap());
-                    // }
-                    //
-                    // match client.post_remove_unread(ids).await {
-                    //     Ok(_) => {},
-                    //     Err(e) => {
-                    //         panic!("{:?}", e);
-                    //     }
-                    // };
-
-                    println!("mark as read ... complete");
-                }
-                KeyCode::Down => {
-                    if let Some(selected) = from_list_state.selected() {
-                        if selected >= address_list.len() - 1 {
-                            from_list_state.select(Some(0));
-                        } else {
-                            from_list_state.select(Some(selected + 1));
-                        }
-                    }
-                    if let Some(selected) = count_list_state.selected() {
-                        if selected >= count_list.len() - 1 {
-                            count_list_state.select(Some(0));
-                        } else {
-                            count_list_state.select(Some(selected + 1));
-                        }
-                    }
-                }
-                KeyCode::Up => {
-                    if let Some(selected) = from_list_state.selected() {
-                        if selected > 0 {
-                            from_list_state.select(Some(selected - 1));
-                        } else {
-                            from_list_state.select(Some(address_list.len() - 1));
-                        }
-                    }
-                    if let Some(selected) = count_list_state.selected() {
-                        if selected > 0 {
-                            count_list_state.select(Some(selected - 1));
-                        } else {
-                            count_list_state.select(Some(count_list.len() - 1));
-                        }
-                    }
-                }
-                _ => {}
             },
-            Event::Tick => {}
+            Event::Tick => {
+                // 次のループへ
+            }
         }
     }
+
+    disable_raw_mode()?;
+    terminal.show_cursor()?;
 
     Ok(())
 }
