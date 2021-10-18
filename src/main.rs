@@ -10,7 +10,8 @@ use request::{
 };
 use message::MessageClient;
 use events::events::{Event, Events};
-use app::EventState;
+use app::App;
+use crate::events::EventState;
 
 use tui::{
     backend::CrosstermBackend,
@@ -23,18 +24,15 @@ use tui::{
     Terminal,
 };
 use crossterm::{
-    event::{KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use thiserror::Error;
 
 use std::{
-    time::{Duration, Instant},
-    sync::mpsc,
     io,
     fs,
-    thread,
 };
+use crate::app::ListStates;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -98,6 +96,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Count選択構造体
     let mut count_list_state = ListState::default();
     count_list_state.select(Some(0));
+
+    let mut app = App::new(
+        config,
+        ListStates::new(
+            &mut from_list_state,
+            &mut count_list_state
+        ),
+        address_list,
+        count_list,
+    );
 
     terminal.clear()?;
 
@@ -176,7 +184,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match events.next()? {
             Event::Input(event) => {
-                match app::event(event.code) {
+                match app.event(event.code) {
                     Ok(state) => {
                         if state == EventState::NotConsumed {
                             break;
