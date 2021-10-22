@@ -1,6 +1,7 @@
 mod config;
 mod request;
 mod message;
+mod app;
 
 use config::Config;
 use request::{
@@ -76,8 +77,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address_count_list = message::get_address_count_list(
         &filled_message_list
     ).unwrap();
-    // FIXME: 関数内で生まれた値は一度外だししないと、参照にできないのが不便
+
     let (address_list, count_list) = message::split_address_count(&address_count_list);
+
+    let mut app = App::new(
+        config,
+        ListStates::new(
+            &mut from_list_state,
+            &mut count_list_state
+        ),
+        address_list,
+        count_list,
+    );
 
     // rowモード
     enable_raw_mode().expect("raw mode");
