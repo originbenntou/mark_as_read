@@ -1,6 +1,7 @@
 mod config;
 mod request;
 mod message;
+mod events;
 mod app;
 
 use config::Config;
@@ -8,6 +9,9 @@ use request::{
     client::GClient,
 };
 use message::MessageClient;
+use events::events::Events;
+use app::{App, ListStates};
+use crate::events::EventState;
 
 use tui::{
     backend::CrosstermBackend,
@@ -55,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // APIクライアント初期化
     let mut config = Config::new();
     config.init();
-    let client = GClient::new(&config.valid_token.unwrap_or_default());
+    let client = GClient::new(config.valid_token.as_ref().unwrap());
     let message_client = MessageClient::new(&client);
 
     // 未読リスト取得
@@ -79,16 +83,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ).unwrap();
 
     let (address_list, count_list) = message::split_address_count(&address_count_list);
-
-    let mut app = App::new(
-        config,
-        ListStates::new(
-            &mut from_list_state,
-            &mut count_list_state
-        ),
-        address_list,
-        count_list,
-    );
 
     // rowモード
     enable_raw_mode().expect("raw mode");
@@ -142,6 +136,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Count選択構造体
     let mut count_list_state = ListState::default();
     count_list_state.select(Some(0));
+
+    let list_states = ListStates::new(
+        &mut from_list_state,
+        &mut count_list_state
+    );
+
+    let _ = App::new(
+        &config,
+        list_states,
+        &address_list,
+        vec![""],
+    );
 
     loop {
         // widget生成
