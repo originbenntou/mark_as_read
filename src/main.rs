@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // APIクライアント初期化
     let mut config = Config::new();
     config.init();
-    let client = GClient::new(&config.valid_token.unwrap_or_default());
+    let client = GClient::new(&config.valid_token.as_ref().unwrap());
     let message_client = MessageClient::new(&client);
 
     // 未読リスト取得
@@ -98,13 +98,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     count_list_state.select(Some(0));
 
     let mut app = App::new(
-        config,
+        &config,
         ListStates::new(
             &mut from_list_state,
             &mut count_list_state
         ),
-        address_list,
-        count_list,
+        &address_list,
+        &count_list,
     );
 
     terminal.clear()?;

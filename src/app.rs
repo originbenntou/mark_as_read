@@ -6,18 +6,18 @@ use std::fs;
 use tui::widgets::ListState;
 
 pub struct App<'a> {
-    config: Config<'a>,
+    config: &'a Config<'a>,
     list_state: ListStates<'a>,
-    address_list: Vec<&'a str>,
-    count_list: Vec<&'a str>,
+    address_list: &'a Vec<&'a str>,
+    count_list: &'a Vec<&'a str>,
 }
 
-impl App<'_> {
+impl<'a> App<'a> {
     pub fn new(
-        config: Config<'static>,
-        list_state: ListStates<'static>,
-        address_list: Vec<&'static str>,
-        count_list: Vec<&'static str>
+        config: &'a Config<'a>,
+        list_state: ListStates<'a>,
+        address_list: &'a Vec<&'a str>,
+        count_list: &'a Vec<&'a str>
     ) -> Self {
         Self {
             config,
