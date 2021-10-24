@@ -5,7 +5,6 @@ use std::fs;
 
 use tui::{
     Frame,
-    backend::CrosstermBackend,
     backend::Backend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
@@ -13,7 +12,6 @@ use tui::{
     widgets::{
         Block, BorderType, Borders, List, ListItem, ListState, Tabs,
     },
-    Terminal,
 };
 
 pub struct App<'a> {

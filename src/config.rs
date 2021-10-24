@@ -49,6 +49,7 @@ impl Config<'_> {
     }
 }
 
+#[allow(unused_must_use)]
 fn create_essential_files(paths: Vec<&str>) {
     paths.into_iter().map(|p| {
         if !Path::new(p).exists() {

@@ -15,12 +15,6 @@ use crate::events::EventState;
 
 use tui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{
-        Block, BorderType, Borders, List, ListItem, ListState, Tabs,
-    },
     Terminal,
 };
 use crossterm::{
@@ -32,7 +26,6 @@ use std::{
     io,
     fs,
 };
-use crate::app::ListStates;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -41,8 +34,6 @@ pub enum Error {
     #[error("error parsing the DB file: {0}")]
     ParseDBError(#[from] serde_json::Error),
 }
-
-const MARK_LIST_PATH: &str = "./data/mark_list.json";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

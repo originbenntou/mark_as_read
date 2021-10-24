@@ -37,7 +37,7 @@ impl GClient {
             Ok(auth) => {
                 req_headers.insert(AUTHORIZATION, auth);
             },
-            Err(e) => {
+            Err(_) => {
                 unreachable!();
             }
         };
