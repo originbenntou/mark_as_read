@@ -163,14 +163,27 @@ impl<'a> App<'a> {
                 return Ok(EventState::Consumed);
             },
             KeyCode::Char('e') => {
-                let test = filled_message_list.into_iter().filter(
-                    |m| m.payload.as_ref().unwrap().headers.as_ref().unwrap().contains(
-                        &Header {
-                            name: Some("From".to_string()),
-                            value: Some("Coincheck <support@coincheck.com>".to_string()),
-                        }
-                    )
-                ).collect::<Vec<Message>>();
+                let mut id_list: Vec<&str> = Vec::new();
+
+                let content = fs::read_to_string(self.config.mark_list_path).unwrap();
+                let mark_list: Vec<String> = serde_json::from_str(&content).unwrap();
+
+                for from_value in mark_list {
+                    let match_message_list = self.message_list.into_iter().filter(
+                        |m| m.payload.as_ref().unwrap().headers.as_ref().unwrap().contains(
+                            &Header {
+                                name: Some("From".to_string()),
+                                value: Some(from_value.clone()),
+                            }
+                        )
+                    ).collect::<Vec<&Message>>();
+
+                    for message in match_message_list {
+                        id_list.push(message.id.as_ref().unwrap());
+                    }
+                }
+
+                println!("{:?}", id_list);
 
                 println!("mark as read ... complete");
                 return Ok(EventState::Consumed);
