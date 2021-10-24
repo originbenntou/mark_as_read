@@ -117,6 +117,10 @@ impl<'a> App<'a> {
 
         let content = fs::read_to_string(self.config.mark_list_path).unwrap();
 
+        // FIXME: 空ファイルを読もう！
+        // FIXME: clientを分離しよう！
+        // FIXME: logをrenderしよう！
+        // FIXME: 都度ファイル読み書きじゃなく、良いタイミングせ書き込もう！
         // if db_content == "" {
         //     let empty_vec: Vec<String> = Vec::new();
         //     Ok((empty_vec))
