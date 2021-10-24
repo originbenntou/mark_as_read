@@ -1,7 +1,7 @@
 use crossterm::event::KeyCode;
 use crate::events::EventState;
 use crate::config::Config;
-use std::fs;
+use crate::message::{Message, Header};
 
 use tui::{
     Frame,
@@ -14,8 +14,11 @@ use tui::{
     },
 };
 
+use std::fs;
+
 pub struct App<'a> {
     config: &'a Config<'a>,
+    message_list: &'a Vec<Message>,
     list_state: ListStates,
     address_list: &'a Vec<&'a str>,
     count_list: &'a Vec<&'a str>,
@@ -24,6 +27,7 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(
         config: &'a Config<'a>,
+        message_list: &'a Vec<Message>,
         address_list: &'a Vec<&'a str>,
         count_list: &'a Vec<&'a str>
     ) -> Self {
@@ -42,6 +46,7 @@ impl<'a> App<'a> {
 
         Self {
             config,
+            message_list,
             list_state,
             address_list,
             count_list
@@ -158,18 +163,14 @@ impl<'a> App<'a> {
                 return Ok(EventState::Consumed);
             },
             KeyCode::Char('e') => {
-                // post unread
-                // let mut ids: Vec<&str> = Vec::new();
-                // for v in deserialize["messages"].as_array().unwrap() {
-                //     ids.push(v["id"].as_str().unwrap());
-                // }
-                //
-                // match client.post_remove_unread(ids).await {
-                //     Ok(_) => {},
-                //     Err(e) => {
-                //         panic!("{:?}", e);
-                //     }
-                // };
+                let test = filled_message_list.into_iter().filter(
+                    |m| m.payload.as_ref().unwrap().headers.as_ref().unwrap().contains(
+                        &Header {
+                            name: Some("From".to_string()),
+                            value: Some("Coincheck <support@coincheck.com>".to_string()),
+                        }
+                    )
+                ).collect::<Vec<Message>>();
 
                 println!("mark as read ... complete");
                 return Ok(EventState::Consumed);

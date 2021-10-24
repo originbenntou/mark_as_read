@@ -49,9 +49,9 @@ impl GClient {
         &self,
         url: &str,
         query: &Vec<(&str, &str)>,
-        _body: &Vec<(&str, &str)>,
+        body: &HashMap<&str, Vec<&str>>,
         method: Method,
-    ) -> Result<String, Error>
+    ) -> Result<Option<String>, Error>
     {
         match method {
             Method::GET => {
@@ -60,25 +60,17 @@ impl GClient {
                     .query(query)
                     .send().await?
                     .text().await?;
-                Ok(res_body)
+
+                Ok(Some(res_body))
             },
-            _ => {
-                unreachable!();
+            Method::POST => {
+                let _ = self.client
+                    .post(url)
+                    .json(body)
+                    .send().await?;
+
+                Ok(None)
             }
         }
-    }
-
-    // 既読化
-    pub async fn post_remove_unread(&self, ids: Vec<&str>) -> Result<(), Error> {
-        let mut req_body = HashMap::new();
-        req_body.insert("ids", ids);
-        req_body.insert("removeLabelIds", vec!["UNREAD"]);
-
-        let _ = self.client
-            .post("https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify")
-            .json(&req_body)
-            .send().await?;
-
-        Ok(())
     }
 }

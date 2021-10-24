@@ -8,7 +8,7 @@ use config::Config;
 use request::{
     client::GClient,
 };
-use message::MessageClient;
+use message::{MessageClient};
 use events::events::{Event, Events};
 use app::App;
 use crate::events::EventState;
@@ -20,12 +20,9 @@ use tui::{
 use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use thiserror::Error;
 
-use std::{
-    io,
-    fs,
-};
+use thiserror::Error;
+use std::io;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -57,14 +54,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 未読リストの詳細データを埋める
-    // FIXME: 引数はもう使わないのでmoveすべきかも、いや借用をちゃんと利用すべきかも
     let filled_message_list = message_client.fill_messages_metadata(&unread_message_list).await?;
 
     // 表示用にアドレスと数値のリストを生成
     let address_count_list = message::get_address_count_list(
         &filled_message_list
     ).unwrap();
-    // FIXME: 関数内で生まれた値は一度外だししないと、参照にできないのが不便
+    // FIXME: 関数内で生まれた値は一度外だししないと、参照にできないのが不便？
     let (address_list, count_list) = message::split_address_count(&address_count_list);
 
     // rowモード
@@ -80,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut app = App::new(
         &config,
+        &filled_message_list,
         &address_list,
         &count_list,
     );

@@ -33,7 +33,7 @@ pub struct Payload {
     pub headers: Option<Vec<Header>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Header {
     pub name: Option<String>,
@@ -53,11 +53,11 @@ impl<'a> MessageClient<'a> {
         let res_body = self.client.call_api(
             &"https://gmail.googleapis.com/gmail/v1/users/me/messages",
             &vec![("q", "is:unread")],
-            &vec![],
+            &HashMap::new(),
             Method::GET,
         ).await?;
 
-        let v: Value = serde_json::from_str(&res_body).unwrap();
+        let v: Value = serde_json::from_str(res_body.as_ref().unwrap()).unwrap();
         let v_m = v["messages"].as_array().unwrap();
 
         let messages = v_m.to_vec().into_iter().map(|m| {
@@ -99,11 +99,29 @@ impl<'a> MessageClient<'a> {
                 ("format", "metadata"),
                 ("metadataHeaders", "From"),
             ],
-            &vec![],
+            &HashMap::new(),
             Method::GET,
         ).await?;
 
-        Ok(res_body)
+        Ok(res_body.unwrap())
+    }
+
+    // 既読化
+    async fn post_remove_unread(&self, ids: Vec<&str>) -> Result<(), Error> {
+        let mut req_body = HashMap::new();
+        req_body.insert("ids", ids);
+        req_body.insert("removeLabelIds", vec!["UNREAD"]);
+
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchModify";
+
+        let _ = self.client.call_api(
+            &url,
+            &vec![],
+            &req_body,
+            Method::POST,
+        ).await?;
+
+        Ok(())
     }
 }
 
