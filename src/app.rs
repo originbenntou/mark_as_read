@@ -14,6 +14,8 @@ use tui::{
     },
 };
 
+use chrono::Local;
+
 use std::fs;
 
 pub struct App<'a> {
@@ -91,10 +93,16 @@ impl<'a> App<'a> {
             .divider(Span::raw("|"));
         f.render_widget(tabs, vertical_chunk[0]);
 
+        let read = fs::read_to_string(self.config.log_path).unwrap();
+        let mut log_list: Vec<String> = Vec::new();
+        if !read.is_empty() {
+            log_list = serde_json::from_str(&read).unwrap();
+        }
+
         // 下部ロガー
         let logs = render_list_items(
             "Logs",
-            vec!["aaaaaaaa", "bbbbbbb"],
+            log_list.iter().map(AsRef::as_ref).collect(),
         );
         f.render_widget(logs, vertical_chunk[2]);
 
@@ -124,22 +132,21 @@ impl<'a> App<'a> {
         );
         f.render_stateful_widget(mid, horizon_chunk[1], &mut self.list_state.count);
 
-        let content = fs::read_to_string(self.config.mark_list_path).unwrap();
+        let read = fs::read_to_string(self.config.mark_list_path).unwrap();
 
-        let mut mark_list: Vec<String> = Vec::new();
-        if !content.is_empty() {
-            mark_list = serde_json::from_str(&content).unwrap();
+        let mut target_list: Vec<String> = Vec::new();
+        if !read.is_empty() {
+            target_list = serde_json::from_str(&read).unwrap();
         }
 
         // FIXME: clientを分離しよう！
-        // FIXME: logをrenderしよう！
         // FIXME: 都度ファイル読み書きじゃなく、良いタイミングせ書き込もう！
         // FIXME: エラーハンドリングしよう！ anyhow::Error?
 
         // 右部Targetリスト
         let right = render_list_items(
             "Target",
-            mark_list.iter().map(AsRef::as_ref).collect()
+            target_list.iter().map(AsRef::as_ref).collect()
         );
         f.render_widget(right, horizon_chunk[2]);
     }
@@ -167,6 +174,20 @@ impl<'a> App<'a> {
                     add_list.dedup();
 
                     fs::write(self.config.mark_list_path, &serde_json::to_vec(&add_list).unwrap()).unwrap();
+
+                    // FIXME: ファイル読み書きを関数化（とログ関数）
+                    // FIXME: 逆順にしないと見切れる
+                    // FIXME: スクロールとかできんのかね
+
+                    let read = fs::read_to_string(self.config.log_path).unwrap();
+                    let mut log_list: Vec<String> = Vec::new();
+                    if !read.is_empty() {
+                        log_list = serde_json::from_str(&read).unwrap();
+                    }
+
+                    log_list.push(format!("[{}] {}: {}", Local::now().format("%Y年%m月%d日 %H:%M:%S"), "Add", self.address_list[selected]));
+
+                    fs::write(self.config.log_path, &serde_json::to_vec(&log_list).unwrap()).unwrap();
                 }
                 return Ok(EventState::Consumed);
             },

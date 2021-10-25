@@ -54,10 +54,10 @@ impl Config<'_> {
 
 #[allow(unused_must_use)]
 fn create_essential_files(paths: Vec<&str>) {
-    paths.into_iter().map(|p| {
+    for p in paths {
         if !Path::new(p).exists() {
             fs::File::create(p).unwrap();
         }
-    });
+    }
 }
 
