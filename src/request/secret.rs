@@ -155,7 +155,7 @@ pub fn get_oauth2_token() -> Result<String, Error> {
 }
 
 fn get_secret() -> Result<(String, String), Error> {
-    let content = fs::read_to_string("client_secret.json")?;
+    let content = fs::read_to_string("./data/client_secret.json")?;
 
     let p: serde_json::Value = serde_json::from_str(&content).unwrap();
 

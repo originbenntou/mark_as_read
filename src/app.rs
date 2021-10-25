@@ -62,6 +62,7 @@ impl<'a> App<'a> {
                 [
                     Constraint::Length(3),
                     Constraint::Min(2),
+                    Constraint::Length(12),
                 ]
                     .as_ref(),
             )
@@ -90,6 +91,14 @@ impl<'a> App<'a> {
             .divider(Span::raw("|"));
         f.render_widget(tabs, vertical_chunk[0]);
 
+        // 下部ロガー
+        let logs = render_list_items(
+            "Logs",
+            vec!["aaaaaaaa", "bbbbbbb"],
+        );
+        f.render_widget(logs, vertical_chunk[2]);
+
+        // 中央
         // 横方向分割
         let horizon_chunk = Layout::default()
             .direction(Direction::Horizontal)
@@ -103,13 +112,13 @@ impl<'a> App<'a> {
             .split(vertical_chunk[1]);
 
         // 左部Fromリスト
-        let left = render_froms(
+        let left = render_list_items(
             "From",
             self.address_list.clone(), // ループするクロージャごとでmoveされるため
         );
         f.render_stateful_widget(left, horizon_chunk[0], &mut self.list_state.from);
 
-        let mid = render_froms(
+        let mid = render_list_items(
             "Count",
             self.count_list.clone(), // ループするクロージャごとでmoveされるため
         );
@@ -117,19 +126,18 @@ impl<'a> App<'a> {
 
         let content = fs::read_to_string(self.config.mark_list_path).unwrap();
 
-        // FIXME: 空ファイルを読もう！
+        let mut mark_list: Vec<String> = Vec::new();
+        if !content.is_empty() {
+            mark_list = serde_json::from_str(&content).unwrap();
+        }
+
         // FIXME: clientを分離しよう！
         // FIXME: logをrenderしよう！
         // FIXME: 都度ファイル読み書きじゃなく、良いタイミングせ書き込もう！
-        // if db_content == "" {
-        //     let empty_vec: Vec<String> = Vec::new();
-        //     Ok((empty_vec))
-        // }
-
-        let mark_list: Vec<String> = serde_json::from_str(&content).unwrap();
+        // FIXME: エラーハンドリングしよう！ anyhow::Error?
 
         // 右部Targetリスト
-        let right = render_froms(
+        let right = render_list_items(
             "Target",
             mark_list.iter().map(AsRef::as_ref).collect()
         );
@@ -247,14 +255,14 @@ impl ListStates {
     }
 }
 
-fn render_froms<'a>(block_name: &'a str, from_list: Vec<&'a str>) -> List<'a> {
+fn render_list_items<'a>(block_name: &'a str, list_items: Vec<&'a str>) -> List<'a> {
     let from_block = Block::default()
         .borders(Borders::ALL)
         .style(Style::default().fg(Color::White))
         .title(block_name)
         .border_type(BorderType::Plain);
 
-    let items: Vec<_> = from_list
+    let items: Vec<_> = list_items
         .iter()
         .map(|from| {
             ListItem::new(Spans::from(vec![Span::styled(
